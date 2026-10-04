@@ -208,7 +208,7 @@ export default function Home() {
             </div>
           )}
 
-          {recent.length === 0 && (
+          {true && (
             <div className="mt-10 border-t border-[#1a1c22] pt-6 grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px]">
               <details className="group">
                 <summary className="cursor-pointer list-none">
