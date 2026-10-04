@@ -89,7 +89,7 @@ export default function ScanReport() {
           </div>
           <h1 className="text-lg font-medium text-[#c5c9d1] mb-1">Security Report</h1>
           <p className="text-[10px] text-[#5a616e]">
-            Scanned {new Date(scan.scan_time).toLocaleString()} · {scan.scanned_files}/{scan.total_files} files · {scan.total_vulnerabilities} findings
+            Scanned {new Date(scan.scan_time).toLocaleString()} · {scan.scanned_files} analyzed · {scan.total_vulnerabilities} findings
           </p>
         </div>
 

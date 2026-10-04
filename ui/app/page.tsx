@@ -194,7 +194,7 @@ export default function Home() {
                     <span className="text-[12px] text-[#c5c9d1] group-hover:text-[#4a9ab5] transition-colors truncate flex-1">
                       {scan.repo_name}
                     </span>
-                    {scan.high_count > 0 && (
+                    {false && (
                       <span className="text-[10px] text-red-400/80 shrink-0">
                         {scan.high_count} HIGH
                       </span>
@@ -242,7 +242,7 @@ export default function Home() {
                 <div className="text-[#5a616e] tracking-widest mb-1.5">
                   AVG SCAN TIME
                 </div>
-                <div className="text-[#c5c9d1] text-base">1-3 min</div>
+                <div className="text-[#c5c9d1] text-base">1-7 min</div>
                 <div className="mt-1.5 text-[10px] text-[#5a616e]">
                   Cached scans return instantly
                 </div>

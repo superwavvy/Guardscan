@@ -22,12 +22,14 @@ async function findCachedScan(repoName, commitSha) {
 async function saveScanReport(report) {
     console.log("\n💾 Saving report to Supabase...");
 
+    const planned = report.coverage.scanned + report.coverage.partial + report.coverage.failed + report.coverage.skipped;
+    const cacheable = planned > 0 && (report.coverage.scanned / planned) >= 0.8;
     const { data: scanRow, error: scanError } = await supabase
         .from('scans')
         .insert({
             repo_url: report.repoUrl || `https://github.com/${report.repo}`,
             repo_name: report.repo,
-            commit_sha: report.commitSha || null,
+            commit_sha: cacheable ? (report.commitSha || null) : null,
             branch: report.branch,
             status: 'complete',
             total_files: report.totalFiles,
