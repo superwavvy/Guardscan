@@ -2,9 +2,6 @@
 
 An AI-powered security scanner that reads your GitHub repo and finds the OWASP Top 10 vulnerabilities before attackers do.
 
-**[Run a live scan →](https://guardscan.vercel.app)** *(replace with your Vercel URL after deployment)*
-
-
 ---
 
 ## What It Does
@@ -26,31 +23,28 @@ It is **not** a replacement for a professional security audit. It's a first-pass
 ## Architecture
 
 ```
-
 User pastes GitHub URL
-↓
+     ↓
 [Vercel Frontend]  → POST /api/scan
-↓
+     ↓
 [Alwaysdata Scanner]  → fetches repo, runs 2-layer analysis
-↓
+     ↓
 [Supabase]  → stores scan + findings
-↓
+     ↓
 [Vercel Frontend]  → renders report
-
 ```
 
 | Layer | Stack |
 |:---|:---|
 | Frontend | Next.js 16, TypeScript, Tailwind v4, IBM Plex Mono |
 | Backend | Node.js, Express, Ethers v6, Octokit |
-| Analysis | Deterministic regex (patterns.js) + Groq LLM (`openai/gpt-oss-120b`) |
+| Analysis | Deterministic regex + Groq LLM (`openai/gpt-oss-120b`) |
 | Storage | Supabase (Postgres) |
 | Hosting | Vercel (UI) + Alwaysdata (scanner) |
 
 ## Repo Structure
 
 ```
-
 guardscan/
 ├── scanner.js              # Orchestrator
 ├── analyzer.js             # LLM analysis + CWE mapping
@@ -61,63 +55,74 @@ guardscan/
 ├── db.js                   # Supabase writes
 ├── server.js               # Express HTTP wrapper
 └── ui/                     # Next.js frontend
-
 ```
 
-See [`TECHNICAL_OVERVIEW.md`](./TECHNICAL_OVERVIEW.md) for the deep dive.
+See [TECHNICAL_OVERVIEW.md](./TECHNICAL_OVERVIEW.md) for the deep dive.
 
 ## Validation
 
-**OWASP Juice Shop** (deliberately vulnerable training app):
+**OWASP Juice Shop** — deliberately vulnerable training app:
 - 30 files scanned, 26 unique findings
 
-**expressjs/express** (production repo, already audited):
+**expressjs/express** — production repo, already audited:
 - 30 files scanned, 15 findings
 - Rediscovered bug classes matching **CVE-2024-29041** (Host Header Injection) and **CVE-2024-43796** (Path Traversal in res.download)
 
 ## Local Development
 
+### Scanner backend
 
-# Scanner backend
+```bash
 cd guardscan
 npm install
-cp .env.example .env   # add your keys
+cp .env.example .env
 node server.js
+```
 
-# UI (separate terminal)
+Runs on port 8100 by default.
+
+### UI frontend
+
+In a separate terminal:
+
+```bash
 cd guardscan/ui
 npm install
 cp .env.example .env.local
 npm run dev
+```
 
 Open http://localhost:3000.
 
-#Environment Variables
+## Environment Variables
 
-Scanner (guardscan/.env):
+### Scanner (`.env` in repo root)
 
+```
 API_KEY=random_hex_string
 GROQ_API_KEY=gsk_...
 GITHUB_TOKEN=ghp_...
 ARBITRUM_RPC=https://arb-mainnet.g.alchemy.com/v2/...
 SUPABASE_URL=https://....supabase.co
 SUPABASE_ANON_KEY=eyJ...
+```
 
-UI (guardscan/ui/.env.local)
+### UI (`ui/.env.local`)
 
+```
 NEXT_PUBLIC_SUPABASE_URL=https://....supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SCANNER_URL=https://guardscan.alwaysdata.net
 SCANNER_API_KEY=same_as_backend_api_key
+```
 
-#Known Limitations
+## Known Limitations
 
-· LLM non-determinism — running the same scan twice may produce slightly different results. Direct pattern matches (SQL injection, hardcoded secrets) are stable; contextual findings (auth design smells) may vary.
-· 30-file cap per scan — MVP tradeoff for speed and API rate limits.
-· False positives possible — every finding should be manually verified before acting on it.
-· Not a replacement for professional audit — this is a triage tool.
+- **LLM non-determinism** — running the same scan twice may produce slightly different results. Direct pattern matches (SQL injection, hardcoded secrets) are stable; contextual findings (auth design smells) may vary.
+- **30-file cap per scan** — MVP tradeoff for speed and API rate limits.
+- **False positives possible** — every finding should be manually verified before acting on it.
+- **Not a replacement for professional audit** — this is a triage tool.
 
-License
+## License
 
 MIT
-
