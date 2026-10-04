@@ -2,7 +2,7 @@
 
 An AI-powered security scanner that reads your GitHub repo and finds the OWASP Top 10 vulnerabilities before attackers do.
 
-**[🚀 Try it live →](https://guardscan-nine.vercel.app)**
+<sub>[Try it live →](https://guardscan-nine.vercel.app)</sub>
 ---
 
 ## What It Does
