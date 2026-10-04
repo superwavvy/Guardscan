@@ -179,7 +179,7 @@ export default function Home() {
               <div className="text-[#5a616e] tracking-widest mb-1.5">
                 AVG SCAN TIME
               </div>
-              <div className="text-[#c5c9d1] text-base">~30s</div>
+              <div className="text-[#c5c9d1] text-base">1-3 min</div>
               <div className="mt-1.5 text-[10px] text-[#5a616e]">
                 Depends on repo size and API rate limits
               </div>
