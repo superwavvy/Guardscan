@@ -233,7 +233,7 @@ export default function Home() {
                 <div className="text-[#5a616e] tracking-widest mb-1.5">
                   MAX FILES / SCAN
                 </div>
-                <div className="text-[#c5c9d1] text-base">30</div>
+                <div className="text-[#c5c9d1] text-base">20</div>
                 <div className="mt-1.5 text-[10px] text-[#5a616e]">
                   Priority files first — auth, routes, config, DB
                 </div>

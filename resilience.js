@@ -29,7 +29,7 @@
 //   //    }
 //   //    R.printCoverage(results);
 
-const MAX_CHUNK_TOKENS = 2000;
+const MAX_CHUNK_TOKENS = 1500;
 const MAX_CHUNKS_PER_FILE = 4;
 const CHUNK_OVERLAP_LINES = 15;
 
@@ -97,7 +97,7 @@ function describeError(err) {
 
 // ---------- Retry with backoff ----------
 
-const NON_RETRYABLE = [400, 401, 403, 404, 413];
+const NON_RETRYABLE = [400, 401, 403, 404, 413, 429];
 
 async function withRetry(fn, { retries = 3, baseDelay = 2000 } = {}) {
   let lastErr;

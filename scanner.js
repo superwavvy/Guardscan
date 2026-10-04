@@ -7,7 +7,7 @@ const { scanWithPatterns } = require('./patterns.js');
 const P = require('./guardscan-patch.js');
 const R = require('./resilience.js');
 
-const MAX_FILES = 30;
+const MAX_FILES = 20;
 
 // --- Normalize type strings for dedupe ---
 function normalizeType(type) {
@@ -162,7 +162,7 @@ async function scanRepo(repoUrl) {
             patternFindings,
             analyzeChunk: analyzeFn,
             breaker,
-            delayMs: 2000
+            delayMs: 5000
         });
 
         // Verify LLM findings against the actual file
