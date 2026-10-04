@@ -1,9 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const { scanRepo } = require('./scanner.js');
 
 const app = express();
+const scanLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: { error: 'Rate limit reached. Try again in an hour.' }, standardHeaders: true, legacyHeaders: false });
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8100;
 const API_KEY = process.env.API_KEY; // shared secret with Vercel
 
@@ -24,7 +27,7 @@ app.get('/', (req, res) => {
 });
 
 // Main scan endpoint
-app.post('/scan', async (req, res) => {
+app.post('/scan', scanLimiter, async (req, res) => {
     // Auth check
     const auth = req.headers['x-api-key'];
     if (API_KEY && auth !== API_KEY) {
@@ -49,6 +52,7 @@ app.post('/scan', async (req, res) => {
             scanId: report.scanId,
             repo: report.repo,
             totalVulnerabilities: report.totalVulnerabilities,
+            cached: report.cached || false,
             bySeverity: report.bySeverity,
             coverage: report.coverage
         });

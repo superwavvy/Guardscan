@@ -1,14 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, ArrowRight, Loader2, ChevronDown } from "lucide-react";
+import { Shield, ArrowRight, Loader2, ChevronDown, Clock } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+
+type RecentScan = {
+  id: string;
+  repo_name: string;
+  total_vulnerabilities: number;
+  high_count: number;
+  scan_time: string;
+};
 
 export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<RecentScan[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    async function loadRecent() {
+      const { data } = await supabase
+        .from("scans")
+        .select("id, repo_name, total_vulnerabilities, high_count, scan_time")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (!data) return;
+
+      // Deduplicate by repo_name, keep newest
+      const seen = new Set<string>();
+      const unique: RecentScan[] = [];
+      for (const row of data) {
+        if (seen.has(row.repo_name)) continue;
+        seen.add(row.repo_name);
+        unique.push(row);
+        if (unique.length >= 5) break;
+      }
+
+      setRecent(unique);
+    }
+    loadRecent();
+  }, []);
 
   async function handleScan() {
     if (!url.trim()) return;
@@ -32,9 +67,18 @@ export default function Home() {
     }
   }
 
+  function timeAgo(iso: string) {
+    const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }
+
   return (
     <main className="min-h-[100dvh] flex flex-col">
-      {/* Header */}
       <header className="border-b border-[#1a1c22]">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
           <Shield className="w-3.5 h-3.5 text-[#4a9ab5]" />
@@ -53,18 +97,14 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main */}
       <div className="flex-1 flex items-start justify-center px-6 pt-6 pb-4">
         <div className="w-full max-w-2xl">
-
-          {/* Status */}
-          <div className="flex items-center gap-2 mb-8 text-[11px] text-[#5a616e]">
+          <div className="flex items-center gap-2 mb-6 text-[11px] text-[#5a616e]">
             <span className="text-[#4a9ab5]">&gt;</span>
             <span>Initializing security scanner</span>
             <span className="inline-block w-1.5 h-3 bg-[#4a9ab5] cursor" />
           </div>
 
-          {/* Heading */}
           <h1 className="text-xl font-medium text-[#c5c9d1] leading-relaxed mb-3">
             Scan any GitHub repo for{" "}
             <span className="text-[#4a9ab5]">OWASP Top 10</span> vulnerabilities.
@@ -75,7 +115,6 @@ export default function Home() {
             categories · Free, no signup
           </p>
 
-          {/* Input */}
           <div className="border border-[#1a1c22] bg-[#0f1014] focus-within:border-[#4a9ab5]/50 transition-colors">
             <div className="flex items-stretch">
               <span className="pl-4 pr-2 py-3 text-[#4a9ab5] text-[13px] select-none">
@@ -110,7 +149,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Examples under input */}
           <div className="mt-2 text-[10px] text-[#3d434e] flex flex-wrap gap-x-3 gap-y-1">
             <span>Try:</span>
             <button
@@ -139,52 +177,78 @@ export default function Home() {
             </div>
           )}
 
-          {/* Stats — with context */}
-          <div className="mt-10 border-t border-[#1a1c22] pt-6 grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px]">
-
-            {/* Detection layers — expandable */}
-            <details className="group">
-              <summary className="cursor-pointer list-none">
-                <div className="text-[#5a616e] tracking-widest mb-1.5 flex items-center gap-1.5">
-                  DETECTION LAYERS
-                  <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
-                </div>
-                <div className="text-[#c5c9d1] text-base">2</div>
-              </summary>
-              <div className="mt-3 text-[10px] text-[#5a616e] leading-relaxed space-y-1.5">
-                <div>
-                  <span className="text-[#4a9ab5]">· Pattern</span> — deterministic
-                  regex rules (no AI, reproducible)
-                </div>
-                <div>
-                  <span className="text-[#4a9ab5]">· LLM</span> — contextual
-                  analysis mapped to OWASP Top 10:2025
-                </div>
+          {/* Recently Scanned */}
+          {recent.length > 0 && (
+            <div className="mt-10 border-t border-[#1a1c22] pt-6">
+              <div className="text-[10px] text-[#5a616e] tracking-widest mb-3 flex items-center gap-2">
+                <Clock className="w-3 h-3" />
+                RECENTLY SCANNED
               </div>
-            </details>
-
-            {/* Max files — with context */}
-            <div>
-              <div className="text-[#5a616e] tracking-widest mb-1.5">
-                MAX FILES / SCAN
-              </div>
-              <div className="text-[#c5c9d1] text-base">30</div>
-              <div className="mt-1.5 text-[10px] text-[#5a616e]">
-                Priority files first — auth, routes, config, DB
+              <div className="space-y-1">
+                {recent.map((scan) => (
+                  <button
+                    key={scan.id}
+                    onClick={() => router.push(`/scan/${scan.id}`)}
+                    className="w-full text-left flex items-center gap-3 py-2 px-3 hover:bg-[#0f1014] border border-transparent hover:border-[#1a1c22] transition-colors group"
+                  >
+                    <span className="text-[12px] text-[#c5c9d1] group-hover:text-[#4a9ab5] transition-colors truncate flex-1">
+                      {scan.repo_name}
+                    </span>
+                    {scan.high_count > 0 && (
+                      <span className="text-[10px] text-red-400/80 shrink-0">
+                        {scan.high_count} HIGH
+                      </span>
+                    )}
+                    <span className="text-[10px] text-[#5a616e] shrink-0">
+                      {timeAgo(scan.scan_time)}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
+          )}
 
-            {/* Scan time */}
-            <div>
-              <div className="text-[#5a616e] tracking-widest mb-1.5">
-                AVG SCAN TIME
+          {recent.length === 0 && (
+            <div className="mt-10 border-t border-[#1a1c22] pt-6 grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px]">
+              <details className="group">
+                <summary className="cursor-pointer list-none">
+                  <div className="text-[#5a616e] tracking-widest mb-1.5 flex items-center gap-1.5">
+                    DETECTION LAYERS
+                    <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+                  </div>
+                  <div className="text-[#c5c9d1] text-base">2</div>
+                </summary>
+                <div className="mt-3 text-[10px] text-[#5a616e] leading-relaxed space-y-1.5">
+                  <div>
+                    <span className="text-[#4a9ab5]">· Pattern</span> — deterministic
+                    regex rules
+                  </div>
+                  <div>
+                    <span className="text-[#4a9ab5]">· LLM</span> — contextual
+                    analysis mapped to OWASP Top 10:2025
+                  </div>
+                </div>
+              </details>
+              <div>
+                <div className="text-[#5a616e] tracking-widest mb-1.5">
+                  MAX FILES / SCAN
+                </div>
+                <div className="text-[#c5c9d1] text-base">30</div>
+                <div className="mt-1.5 text-[10px] text-[#5a616e]">
+                  Priority files first — auth, routes, config, DB
+                </div>
               </div>
-              <div className="text-[#c5c9d1] text-base">1-3 min</div>
-              <div className="mt-1.5 text-[10px] text-[#5a616e]">
-                Depends on repo size and API rate limits
+              <div>
+                <div className="text-[#5a616e] tracking-widest mb-1.5">
+                  AVG SCAN TIME
+                </div>
+                <div className="text-[#c5c9d1] text-base">1-3 min</div>
+                <div className="mt-1.5 text-[10px] text-[#5a616e]">
+                  Cached scans return instantly
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

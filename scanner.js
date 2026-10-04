@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { saveScanReport } = require('./db.js');
+const { saveScanReport, findCachedScan } = require('./db.js');
 const fs = require('fs');
 const { parseGitHubUrl, getRepoTree, getAllFileContents } = require('./fetcher.js');
 const { analyzeChunk } = require('./analyzer.js');
@@ -108,10 +108,26 @@ async function scanRepo(repoUrl) {
     const { owner, repo } = parseGitHubUrl(repoUrl);
     const repoName = `${owner}/${repo}`;
 
-    const { branch, files } = await getRepoTree(owner, repo);
+    const { branch, commitSha, files } = await getRepoTree(owner, repo);
 
     const prioritized = R.prioritizeFiles(files);
     const topFiles = prioritized.slice(0, MAX_FILES);
+    console.log(`\n🔎 Checking cache for ${repoName}@${commitSha.slice(0, 7)}...`);
+    const cached = await findCachedScan(repoName, commitSha);
+    if (cached) {
+        console.log(`✅ Cache hit! Returning scan ${cached.id} from ${cached.created_at}`);
+        return {
+            repo: repoName,
+    commitSha,
+            branch,
+            commitSha,
+            cached: true,
+            scanId: cached.id,
+            totalVulnerabilities: cached.total_vulnerabilities,
+            bySeverity: { HIGH: cached.high_count, MEDIUM: cached.medium_count, LOW: cached.low_count }
+        };
+    }
+    console.log(`❌ Cache miss. Running full scan...`);
     console.log(`\n📊 Scan plan: ${topFiles.length} of ${files.length} files (prioritized)`);
 
     const withContent = await getAllFileContents(owner, repo, branch, topFiles);
@@ -191,6 +207,7 @@ async function scanRepo(repoUrl) {
     const scanId = await saveScanReport({
     repoUrl,
     repo: repoName,
+    commitSha,
     branch,
     totalFiles: files.length,
     rawFindings: unique.length,
@@ -202,6 +219,7 @@ async function scanRepo(repoUrl) {
 
     return {
         repo: repoName,
+    commitSha,
         branch,
         scannedFiles: coverage.scanned + coverage.partial,
         totalFiles: files.length,

@@ -2,7 +2,6 @@ const { Octokit } = require("@octokit/rest");
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-// --- 1. Parse a GitHub URL into owner/repo ---
 function parseGitHubUrl(url) {
     const cleaned = url.replace(/^(https?:\/\/)?(www\.)?github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
     const parts = cleaned.split('/');
@@ -10,7 +9,6 @@ function parseGitHubUrl(url) {
     return { owner: parts[0], repo: parts[1] };
 }
 
-// --- 2. Detect language from file extension ---
 function detectLanguage(filePath) {
     const ext = filePath.split('.').pop().toLowerCase();
     const map = {
@@ -22,14 +20,12 @@ function detectLanguage(filePath) {
     return map[ext] || 'Unknown';
 }
 
-// --- 3. Only allow code files we can meaningfully scan ---
 function isCodeFile(filePath) {
     const codeExtensions = ['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'go', 'rb', 'php', 'sol', 'rs', 'c', 'cpp', 'cs'];
     const ext = filePath.split('.').pop().toLowerCase();
     return codeExtensions.includes(ext);
 }
 
-// --- 4. Fetch the FULL file tree (no slicing) ---
 async function getRepoTree(owner, repo) {
     console.log(`📂 Fetching file tree for ${owner}/${repo}...`);
 
@@ -37,19 +33,22 @@ async function getRepoTree(owner, repo) {
     const branch = repoInfo.data.default_branch;
     console.log(`   Default branch: ${branch}`);
 
+    const branchInfo = await octokit.repos.getBranch({ owner, repo, branch });
+    const commitSha = branchInfo.data.commit.sha;
+    console.log(`   Latest commit: ${commitSha.slice(0, 7)}`);
+
     const treeResponse = await octokit.git.getTree({
         owner, repo,
         tree_sha: branch,
         recursive: "true"
     });
 
-    // Noise folders we skip entirely
     const skipPatterns = [
         /^node_modules\//i, /^dist\//i, /^build\//i, /^coverage\//i,
         /^\.next\//i, /^\.git\//i, /^vendor\//i
     ];
 
-    const MAX_FILE_SIZE = 50 * 1024; // 50KB
+    const MAX_FILE_SIZE = 50 * 1024;
 
     const codeFiles = treeResponse.data.tree
         .filter(item => item.type === "blob")
@@ -63,10 +62,9 @@ async function getRepoTree(owner, repo) {
         }));
 
     console.log(`   Found ${codeFiles.length} scannable code files`);
-    return { branch, files: codeFiles };
+    return { branch, commitSha, files: codeFiles };
 }
 
-// --- 5. Fetch raw content of a single file ---
 async function getFileContent(owner, repo, branch, path) {
     try {
         const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
@@ -79,7 +77,6 @@ async function getFileContent(owner, repo, branch, path) {
     }
 }
 
-// --- 6. Fetch content for a specific list of files ---
 async function getAllFileContents(owner, repo, branch, files) {
     console.log(`📥 Fetching ${files.length} files...`);
     const results = [];

@@ -5,16 +5,29 @@ const supabase = createClient(
     process.env.SUPABASE_ANON_KEY
 );
 
-// Save a full scan report to Supabase
+// Check if we already have a scan for this repo + commit
+async function findCachedScan(repoName, commitSha) {
+    const { data, error } = await supabase
+        .from('scans')
+        .select('id, repo_name, commit_sha, total_vulnerabilities, high_count, medium_count, low_count, scan_time, created_at')
+        .eq('repo_name', repoName)
+        .eq('commit_sha', commitSha)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+    if (error || !data || data.length === 0) return null;
+    return data[0];
+}
+
 async function saveScanReport(report) {
     console.log("\n💾 Saving report to Supabase...");
 
-    // 1. Insert the scan row
     const { data: scanRow, error: scanError } = await supabase
         .from('scans')
         .insert({
             repo_url: report.repoUrl || `https://github.com/${report.repo}`,
             repo_name: report.repo,
+            commit_sha: report.commitSha || null,
             branch: report.branch,
             status: 'complete',
             total_files: report.totalFiles,
@@ -40,7 +53,6 @@ async function saveScanReport(report) {
 
     console.log(`   ✅ Scan saved: ${scanRow.id}`);
 
-    // 2. Insert the findings
     if (report.findings.length > 0) {
         const findingRows = report.findings.map(f => ({
             scan_id: scanRow.id,
@@ -74,4 +86,4 @@ async function saveScanReport(report) {
     return scanRow.id;
 }
 
-module.exports = { supabase, saveScanReport };
+module.exports = { supabase, saveScanReport, findCachedScan };
