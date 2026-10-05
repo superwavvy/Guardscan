@@ -14,21 +14,18 @@ export async function POST(req: NextRequest) {
   }
 
   if (!SCANNER_URL || !SCANNER_API_KEY) {
-    return NextResponse.json(
-      { error: "Scanner not configured." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Scanner not configured." }, { status: 500 });
   }
 
   try {
-    const res = await fetch(`${SCANNER_URL}/scan`, {
+    const res = await fetch(`${SCANNER_URL.replace(/\/$/, '')}/scan`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": SCANNER_API_KEY,
       },
       body: JSON.stringify({ repoUrl }),
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await res.json();
@@ -42,12 +39,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error: any) {
-    if (error.name === "TimeoutError" || error.name === "AbortError") {
-      return NextResponse.json(
-        { error: "Scan timed out. Try a smaller repository." },
-        { status: 504 }
-      );
-    }
     return NextResponse.json(
       { error: error.message || "Failed to reach scanner backend" },
       { status: 500 }

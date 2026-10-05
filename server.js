@@ -5,30 +5,33 @@ const rateLimit = require('express-rate-limit');
 const { scanRepo } = require('./scanner.js');
 
 const app = express();
-const scanLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: { error: 'Rate limit reached. Try again in an hour.' }, standardHeaders: true, legacyHeaders: false });
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8100;
-const API_KEY = process.env.API_KEY; // shared secret with Vercel
+const API_KEY = process.env.API_KEY;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
     origin: [
         'http://localhost:3000',
-        'https://guardscan.vercel.app', // your Vercel domain, adjust
         /\.vercel\.app$/,
         /\.superwavvy\.xyz$/
     ],
     methods: ['POST', 'GET']
 }));
 
-// Health check
+const scanLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    message: { error: 'Rate limit reached. Try again in an hour.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+app.set('trust proxy', 1);
+
 app.get('/', (req, res) => {
     res.json({ status: 'ok', service: 'guardscan-scanner' });
 });
 
-// Main scan endpoint
-app.post('/scan', scanLimiter, async (req, res) => {
-    // Auth check
+app.post('/scan', scanLimiter, (req, res) => {
     const auth = req.headers['x-api-key'];
     if (API_KEY && auth !== API_KEY) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -41,25 +44,21 @@ app.post('/scan', scanLimiter, async (req, res) => {
 
     console.log(`\n📥 Scan request: ${repoUrl} from ${req.ip}`);
 
-    try {
-        const report = await scanRepo(repoUrl);
+    // Respond immediately — scan runs in background
+    res.json({
+        status: 'started',
+        repoUrl,
+        message: 'Scan queued. Results will appear in your scan history shortly.'
+    });
 
-        if (!report.scanId) {
-            return res.status(500).json({ error: 'Scan completed but no scanId returned' });
-        }
-
-        res.json({
-            scanId: report.scanId,
-            repo: report.repo,
-            totalVulnerabilities: report.totalVulnerabilities,
-            cached: report.cached || false,
-            bySeverity: report.bySeverity,
-            coverage: report.coverage
+    // Fire and forget
+    scanRepo(repoUrl)
+        .then((report) => {
+            console.log(`✅ Scan complete: ${report.repo} (${report.totalVulnerabilities} findings)`);
+        })
+        .catch((error) => {
+            console.error(`❌ Scan failed for ${repoUrl}:`, error.message);
         });
-    } catch (error) {
-        console.error('Scan error:', error.message);
-        res.status(500).json({ error: error.message });
-    }
 });
 
 app.listen(PORT, () => {
