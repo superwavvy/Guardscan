@@ -188,6 +188,7 @@ async function analyzeChunk(numberedText, startLine, path, repoName = "unknown/r
 
     const parsed = safeParseJSON(data.choices[0].message.content);
     if (!parsed || !parsed.vulnerabilities) return [];
+    console.log(`   🧠 LLM raw: ${parsed.vulnerabilities.length} findings`);
 
     return parsed.vulnerabilities.map(v => {
         const override = CWE_MAP[v.type];

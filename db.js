@@ -47,7 +47,8 @@ async function finalizeScan(scanId, report) {
 
     const planned = report.coverage.scanned + report.coverage.partial +
                     report.coverage.failed + report.coverage.skipped;
-    const cacheable = planned > 0 && (report.coverage.scanned / planned) >= 0.8;
+    const useful = report.coverage.scanned + report.coverage.partial;
+    const cacheable = planned > 0 && (useful / planned) >= 0.7;
 
     const { error: updateError } = await supabase
         .from('scans')

@@ -63,7 +63,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Scan failed");
 
-      router.push(`/scanning?repo=${encodeURIComponent(url.trim())}`);
+      if (data.scanId) { router.push(`/scan/${data.scanId}`); } else { router.push(`/scanning?repo=${encodeURIComponent(url.trim())}`); }
     } catch (e: any) {
       setError(e.message);
       setLoading(false);

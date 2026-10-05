@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { scanRepo } = require('./scanner.js');
+const { findCachedScan } = require('./db.js');
+const { parseGitHubUrl, getRepoTree } = require('./fetcher.js');
 
 const app = express();
 const PORT = process.env.PORT || 8100;
@@ -10,11 +12,7 @@ const API_KEY = process.env.API_KEY;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
-    origin: [
-        'http://localhost:3000',
-        /\.vercel\.app$/,
-        /\.superwavvy\.xyz$/
-    ],
+    origin: ['http://localhost:3000', /\.vercel\.app$/, /\.superwavvy\.xyz$/],
     methods: ['POST', 'GET']
 }));
 
@@ -31,7 +29,7 @@ app.get('/', (req, res) => {
     res.json({ status: 'ok', service: 'guardscan-scanner' });
 });
 
-app.post('/scan', scanLimiter, (req, res) => {
+app.post('/scan', scanLimiter, async (req, res) => {
     const auth = req.headers['x-api-key'];
     if (API_KEY && auth !== API_KEY) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -44,14 +42,33 @@ app.post('/scan', scanLimiter, (req, res) => {
 
     console.log(`\n📥 Scan request: ${repoUrl} from ${req.ip}`);
 
-    // Respond immediately — scan runs in background
+    // Fast-path: check cache BEFORE responding
+    try {
+        const { owner, repo } = parseGitHubUrl(repoUrl);
+        const repoName = `${owner}/${repo}`;
+        const { commitSha } = await getRepoTree(owner, repo);
+
+        const cached = await findCachedScan(repoName, commitSha);
+        if (cached) {
+            console.log(`⚡ Instant cache hit: ${cached.id}`);
+            return res.json({
+                status: 'cached',
+                scanId: cached.id,
+                repo: repoName,
+                cached: true
+            });
+        }
+    } catch (e) {
+        console.log(`⚠️ Cache check failed, falling through: ${e.message}`);
+    }
+
+    // Cache miss: respond immediately, run in background
     res.json({
         status: 'started',
         repoUrl,
-        message: 'Scan queued. Results will appear in your scan history shortly.'
+        message: 'Scan queued.'
     });
 
-    // Fire and forget
     scanRepo(repoUrl)
         .then((report) => {
             console.log(`✅ Scan complete: ${report.repo} (${report.totalVulnerabilities} findings)`);
