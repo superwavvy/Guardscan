@@ -10,25 +10,28 @@ function ScanningContent() {
   const router = useRouter();
   const repoName = params.get("repo") || "";
   const [elapsed, setElapsed] = useState(0);
+  const [stage, setStage] = useState("Queued");
 
   useEffect(() => {
     if (!repoName) return;
 
-    // Extract owner/repo from URL
     const clean = repoName.replace(/^(https?:\/\/)?(www\.)?github\.com\//, "").replace(/\/$/, "");
-
     const startTime = Date.now();
 
     const tick = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      const s = Math.floor((Date.now() - startTime) / 1000);
+      setElapsed(s);
+      if (s > 20) setStage("Analyzing files");
+      if (s > 60) setStage("Running LLM analysis");
     }, 1000);
 
     const poll = setInterval(async () => {
       const { data } = await supabase
         .from("scans")
-        .select("id")
+        .select("id, status")
         .eq("repo_name", clean)
-        .gte("created_at", new Date(startTime - 10000).toISOString())
+        .eq("status", "complete")
+        .gte("created_at", new Date(startTime - 15000).toISOString())
         .order("created_at", { ascending: false })
         .limit(1);
 
@@ -59,13 +62,13 @@ function ScanningContent() {
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-6">
             <Loader2 className="w-4 h-4 animate-spin text-[#4a9ab5]" />
-            <span className="text-[13px] text-[#c5c9d1]">Scanning repository...</span>
+            <span className="text-[13px] text-[#c5c9d1]">{stage}...</span>
           </div>
 
           <div className="border border-[#1a1c22] bg-[#0f1014] p-5 text-[11px] space-y-3">
-            <div className="flex justify-between">
-              <span className="text-[#5a616e]">Repo</span>
-              <span className="text-[#c5c9d1] truncate ml-4">{repoName}</span>
+            <div className="flex justify-between gap-4">
+              <span className="text-[#5a616e] shrink-0">Repo</span>
+              <span className="text-[#c5c9d1] truncate text-right">{repoName}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[#5a616e]">Elapsed</span>
@@ -78,9 +81,7 @@ function ScanningContent() {
           </div>
 
           <p className="text-[10px] text-[#5a616e] mt-6 leading-relaxed">
-            Results save to your scan history automatically. This page will
-            redirect when the scan completes. You can close this tab and come
-            back later — the scan continues on our server.
+            Results save to your scan history automatically. This page will redirect when the scan completes. You can close this tab and come back later — the scan continues on our server.
           </p>
         </div>
       </div>

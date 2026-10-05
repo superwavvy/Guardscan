@@ -5,13 +5,14 @@ const supabase = createClient(
     process.env.SUPABASE_ANON_KEY
 );
 
-// Check if we already have a scan for this repo + commit
+// Cache lookup — only complete scans
 async function findCachedScan(repoName, commitSha) {
     const { data, error } = await supabase
         .from('scans')
         .select('id, repo_name, commit_sha, total_vulnerabilities, high_count, medium_count, low_count, scan_time, created_at')
         .eq('repo_name', repoName)
         .eq('commit_sha', commitSha)
+        .eq('status', 'complete')
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -19,19 +20,40 @@ async function findCachedScan(repoName, commitSha) {
     return data[0];
 }
 
-async function saveScanReport(report) {
-    console.log("\n💾 Saving report to Supabase...");
-
-    const planned = report.coverage.scanned + report.coverage.partial + report.coverage.failed + report.coverage.skipped;
-    const cacheable = planned > 0 && (report.coverage.scanned / planned) >= 0.8;
-    const { data: scanRow, error: scanError } = await supabase
+// Create a "scanning" placeholder row
+async function createPendingScan(repoName, commitSha, branch) {
+    const { data, error } = await supabase
         .from('scans')
         .insert({
-            repo_url: report.repoUrl || `https://github.com/${report.repo}`,
-            repo_name: report.repo,
-            commit_sha: cacheable ? (report.commitSha || null) : null,
-            branch: report.branch,
+            repo_url: `https://github.com/${repoName}`,
+            repo_name: repoName,
+            commit_sha: commitSha,
+            branch,
+            status: 'scanning'
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error("❌ Failed to create pending scan:", error.message);
+        return null;
+    }
+    return data.id;
+}
+
+// Update the placeholder with final results + save findings
+async function finalizeScan(scanId, report) {
+    console.log(`\n💾 Finalizing scan ${scanId}...`);
+
+    const planned = report.coverage.scanned + report.coverage.partial +
+                    report.coverage.failed + report.coverage.skipped;
+    const cacheable = planned > 0 && (report.coverage.scanned / planned) >= 0.8;
+
+    const { error: updateError } = await supabase
+        .from('scans')
+        .update({
             status: 'complete',
+            commit_sha: cacheable ? (report.commitSha || null) : null,
             total_files: report.totalFiles,
             scanned_files: report.coverage.scanned,
             partial_files: report.coverage.partial,
@@ -43,21 +65,19 @@ async function saveScanReport(report) {
             low_count: report.bySeverity.LOW,
             pattern_count: report.bySource.pattern,
             llm_count: report.bySource.llm,
-            both_count: report.bySource.both
+            both_count: report.bySource.both,
+            scan_time: new Date().toISOString()
         })
-        .select()
-        .single();
+        .eq('id', scanId);
 
-    if (scanError) {
-        console.error("❌ Failed to save scan:", scanError.message);
+    if (updateError) {
+        console.error("❌ Failed to update scan:", updateError.message);
         return null;
     }
 
-    console.log(`   ✅ Scan saved: ${scanRow.id}`);
-
     if (report.findings.length > 0) {
         const findingRows = report.findings.map(f => ({
-            scan_id: scanRow.id,
+            scan_id: scanId,
             file: f.file,
             line: f.line,
             type: f.type,
@@ -74,18 +94,12 @@ async function saveScanReport(report) {
             occurrences: f.occurrences || []
         }));
 
-        const { error: findingsError } = await supabase
-            .from('findings')
-            .insert(findingRows);
-
-        if (findingsError) {
-            console.error("❌ Failed to save findings:", findingsError.message);
-        } else {
-            console.log(`   ✅ Saved ${findingRows.length} findings`);
-        }
+        const { error: findingsError } = await supabase.from('findings').insert(findingRows);
+        if (findingsError) console.error("❌ Failed to save findings:", findingsError.message);
+        else console.log(`   ✅ Saved ${findingRows.length} findings`);
     }
 
-    return scanRow.id;
+    return scanId;
 }
 
-module.exports = { supabase, saveScanReport, findCachedScan };
+module.exports = { supabase, findCachedScan, createPendingScan, finalizeScan };

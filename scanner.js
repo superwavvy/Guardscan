@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { saveScanReport, findCachedScan } = require('./db.js');
+const { createPendingScan, finalizeScan, findCachedScan } = require('./db.js');
 const fs = require('fs');
 const { parseGitHubUrl, getRepoTree, getAllFileContents } = require('./fetcher.js');
 const { analyzeChunk } = require('./analyzer.js');
@@ -128,6 +128,7 @@ async function scanRepo(repoUrl) {
         };
     }
     console.log(`❌ Cache miss. Running full scan...`);
+    const pendingId = await createPendingScan(repoName, commitSha, branch);
     console.log(`\n📊 Scan plan: ${topFiles.length} of ${files.length} files (prioritized)`);
 
     const withContent = await getAllFileContents(owner, repo, branch, topFiles);
@@ -204,7 +205,7 @@ async function scanRepo(repoUrl) {
         failed: results.filter(r => r.status === "failed").length,
         skipped: results.filter(r => r.status === "skipped").length
     };
-    const scanId = await saveScanReport({
+    const scanId = await finalizeScan(pendingId, {
     repoUrl,
     repo: repoName,
     commitSha,
